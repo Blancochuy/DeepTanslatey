@@ -1,0 +1,11 @@
+# Core dependencies
+deepgram-sdk>=3.2
+pyaudiowpatch>=0.2.12
+python-dotenv>=1.0.1
+
+# Translation providers (at least one required)
+deep-translator>=1.11.4  # Google Translate (free, no API key needed)
+deepl>=1.16.1            # DeepL (requires API key, optional)
+
+# GUI dependencies (optional, for --gui mode)
+# tkinter is included with Python on Windows
