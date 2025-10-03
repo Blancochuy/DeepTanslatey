@@ -71,6 +71,10 @@ class DeepgramTranscriber:
         # Async translation queue with max size to prevent backlog
         self.translation_queue = Queue(maxsize=100)
         self.translation_thread = None
+        
+        # Keepalive mechanism
+        self.keepalive_thread = None
+        self.last_audio_time = 0
 
     def _translation_worker(self) -> None:
         """Worker thread for async translations"""
@@ -92,6 +96,24 @@ class DeepgramTranscriber:
                 continue
             except Exception as e:
                 print(f"[error] Translation worker error: {e}")
+    
+    def _keepalive_worker(self, connection) -> None:
+        """Send keepalive packets during silence to prevent connection timeout"""
+        import time
+        silence_packet = b'\x00' * 1920  # 20ms of silence at 48kHz stereo
+        
+        while self.is_recording:
+            try:
+                time.sleep(5.0)  # Check every 5 seconds
+                current_time = time.time()
+                
+                # If no audio sent in last 8 seconds, send keepalive
+                if current_time - self.last_audio_time > 8.0:
+                    connection.send_media(silence_packet)
+                    # Don't update last_audio_time so we keep sending keepalives
+            except Exception as e:
+                # Connection might be closed, that's ok
+                break
 
     def start(self, device_index: int, device_info: dict) -> None:
         """Start transcription from audio device"""
@@ -150,12 +172,30 @@ class DeepgramTranscriber:
                     daemon=True,
                 )
                 listener_thread.start()
+                
+                # Start keepalive thread
+                import time
+                self.last_audio_time = time.time()
+                self.keepalive_thread = threading.Thread(
+                    target=self._keepalive_worker,
+                    args=(connection,),
+                    name="keepalive-worker",
+                    daemon=True,
+                )
+                self.keepalive_thread.start()
 
                 try:
                     while self.is_recording:
-                        data = audio_stream.read()
-                        connection.send_media(data)
-                        self.bytes_sent += len(data)
+                        try:
+                            data = audio_stream.read()
+                            if data:
+                                connection.send_media(data)
+                                self.bytes_sent += len(data)
+                                self.last_audio_time = time.time()
+                        except Exception as read_error:
+                            print(f"\n[warn] Audio read error: {read_error}")
+                            time.sleep(0.1)  # Brief pause before retry
+                            continue
 
                 except KeyboardInterrupt:
                     print("\n\n[info] Stopping capture...")
@@ -266,8 +306,15 @@ class DeepgramTranscriber:
 
     def _build_close_handler(self):
         """Build close handler for Deepgram events"""
-        def handler(_unused) -> None:
-            print("\n[info] Deepgram connection closed")
+        def handler(event) -> None:
+            if self.is_recording:
+                print("\n[warn] Deepgram connection closed unexpectedly!")
+                print("[info] This may be due to:")
+                print("  - Audio device stopped sending data")
+                print("  - Network interruption")
+                print("  - Deepgram timeout (no audio for 12+ seconds)")
+            else:
+                print("\n[info] Deepgram connection closed")
 
         return handler
 

@@ -233,7 +233,13 @@ class AudioStream:
             raise RuntimeError("Stream not opened")
         
         frames = num_frames or self.frames_per_buffer
-        return self.stream.read(frames, exception_on_overflow=False)
+        try:
+            data = self.stream.read(frames, exception_on_overflow=False)
+            return data if data else b''
+        except Exception as e:
+            # Return silence on error instead of crashing
+            print(f"[warn] Stream read error (returning silence): {e}")
+            return b'\\x00' * (frames * 2 * self.channels)  # 16-bit silence
     
     def close(self) -> None:
         """Close audio stream"""
