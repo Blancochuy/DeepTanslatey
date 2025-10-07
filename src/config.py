@@ -39,6 +39,7 @@ class Config:
     AUDIO_FORMAT = "linear16"
     PREFERRED_CHANNELS = 2
     FALLBACK_CHANNELS = 1
+    DEFAULT_FRAMES_PER_BUFFER = 480  # Reduced from 960 for lower latency (10ms vs 20ms)
     
     def __init__(self):
         self.deepgram_api_key = get_deepgram_api_key()

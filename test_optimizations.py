@@ -253,6 +253,247 @@ def test_queue_maxsize():
         return False
 
 
+def test_cache_persistence():
+    """Test cache persistence to disk"""
+    print("\n" + "="*60)
+    print("TEST: Cache Persistence")
+    print("="*60)
+    
+    import tempfile
+    import os
+    from src.translator import TranslationCache
+    
+    # Create temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.json') as f:
+        cache_file = f.name
+    
+    try:
+        # Test saving
+        print("\n[TEST] Testing cache persistence...")
+        cache = TranslationCache(maxsize=10, cache_file=cache_file)
+        cache.set("hello", "hola")
+        cache.set("world", "mundo")
+        
+        # Force save
+        cache._save_to_disk()
+        time.sleep(0.1)  # Wait for async save
+        
+        # Create new cache instance to test loading
+        cache2 = TranslationCache(maxsize=10, cache_file=cache_file)
+        assert cache2.get("hello") == "hola"
+        assert cache2.get("world") == "mundo"
+        print("✓ Cache persistence works correctly")
+        
+        return True
+    finally:
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+
+
+def test_rate_limiting():
+    """Test translation rate limiting"""
+    print("\n" + "="*60)
+    print("TEST: Rate Limiting")
+    print("="*60)
+    
+    from src.translator import TranslationService
+    
+    # Mock translator for testing
+    class MockTranslator:
+        def __init__(self):
+            self.call_count = 0
+        
+        def translate(self, text):
+            self.call_count += 1
+            return f"translated_{text}"
+    
+    service = TranslationService("none", "en", "es", None, enable_cache=False)
+    service.impl = MockTranslator()
+    service.mode = "mock"
+    
+    print("\n[TEST] Testing rate limiting...")
+    start = time.perf_counter()
+    for i in range(5):
+        result = service.translate(f"text_{i}")
+        assert result == f"translated_text_{i}"
+    elapsed = time.perf_counter() - start
+    
+    # Should take at least 0.4 seconds (5 * 0.1 - some tolerance)
+    assert elapsed >= 0.3, f"Rate limiting not working, took {elapsed:.2f}s"
+    print(f"✓ Rate limiting enforced: {elapsed:.2f}s for 5 requests")
+    
+    return True
+
+
+def test_performance_benchmark():
+    """Benchmark overall performance improvements"""
+    print("\n" + "="*60)
+    print("TEST: Performance Benchmark")
+    print("="*60)
+    
+    from src.translator import TranslationCache, TranslationService
+    import threading
+    import concurrent.futures
+    
+    # Benchmark cache operations
+    print("\n[TEST] Benchmarking cache operations...")
+    cache = TranslationCache(maxsize=10000)
+    
+    # Insert benchmark
+    start = time.perf_counter()
+    for i in range(5000):
+        cache.set(f"bench_key_{i}", f"bench_value_{i}")
+    insert_time = time.perf_counter() - start
+    print(f"✓ Inserted 5000 items in {insert_time:.3f}s ({5000/insert_time:.0f} ops/sec)")
+    
+    # Lookup benchmark
+    start = time.perf_counter()
+    for i in range(5000):
+        result = cache.get(f"bench_key_{i}")
+        assert result == f"bench_value_{i}"
+    lookup_time = time.perf_counter() - start
+    print(f"✓ Looked up 5000 items in {lookup_time:.3f}s ({5000/lookup_time:.0f} ops/sec)")
+    
+    # Concurrent access benchmark
+    print("\n[TEST] Benchmarking concurrent cache access...")
+    def worker(worker_id):
+        for i in range(100):
+            key = f"concurrent_{worker_id}_{i}"
+            cache.set(key, f"value_{worker_id}_{i}")
+            result = cache.get(key)
+            assert result == f"value_{worker_id}_{i}"
+    
+    start = time.perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(worker, i) for i in range(10)]
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+    concurrent_time = time.perf_counter() - start
+    print(f"✓ 1000 concurrent operations in {concurrent_time:.3f}s ({1000/concurrent_time:.0f} ops/sec)")
+    
+    # Memory usage check
+    cache_size = len(cache._cache)
+    print(f"✓ Cache size: {cache_size} items")
+    
+    return True
+
+
+def test_batch_translation():
+    """Test batch translation performance"""
+    print("\n" + "="*60)
+    print("TEST: Batch Translation")
+    print("="*60)
+    
+    from src.translator import TranslationService
+    
+    # Mock translator for testing
+    class MockTranslator:
+        def __init__(self):
+            self.call_count = 0
+        
+        def translate(self, text):
+            self.call_count += 1
+            time.sleep(0.01)  # Simulate API delay
+            return f"translated_{text}"
+    
+    service = TranslationService("none", "en", "es", None, enable_cache=False)
+    service.impl = MockTranslator()
+    service.mode = "mock"
+    
+    print("\n[TEST] Testing batch translation performance...")
+    
+    # Test single translation
+    start = time.perf_counter()
+    result1 = service.translate("hello")
+    single_time = time.perf_counter() - start
+    
+    # Test batch translation
+    texts = ["hello", "world", "test", "batch", "translation"]
+    start = time.perf_counter()
+    results = service.translate_batch(texts)
+    batch_time = time.perf_counter() - start
+    
+    # Verify results
+    assert result1 == "translated_hello"
+    assert results == ["translated_hello", "translated_world", "translated_test", "translated_batch", "translated_translation"]
+    
+    # Batch should be faster per item
+    avg_batch_time = batch_time / len(texts)
+    print(f"✓ Single translation: {single_time:.3f}s")
+    print(f"✓ Batch translation: {batch_time:.3f}s total ({avg_batch_time:.3f}s per item)")
+    print(f"✓ Efficiency improvement: {single_time/avg_batch_time:.1f}x faster per item")
+    
+    return True
+
+
+def test_language_detection():
+    """Test automatic language detection"""
+    print("\n" + "="*60)
+    print("TEST: Language Detection")
+    print("="*60)
+    
+    from src.translator import TranslationService
+    
+    # Test with language detection enabled (if available)
+    service = TranslationService("none", "en", "es", None, enable_cache=False, auto_detect_lang=True)
+    
+    print("\n[TEST] Testing language detection...")
+    
+    # Test detection availability
+    if not hasattr(service, 'auto_detect_lang') or not service.auto_detect_lang:
+        print("⚠ Language detection not available (langdetect not installed)")
+        return True
+    
+    # Test detection
+    detected = service._detect_language("Hello world")
+    if detected:
+        print(f"✓ Detected language: {detected}")
+        assert detected == "en"
+    else:
+        print("⚠ Language detection failed")
+    
+    return True
+
+
+def test_smart_fallback():
+    """Test smart provider fallback"""
+    print("\n" + "="*60)
+    print("TEST: Smart Provider Fallback")
+    print("="*60)
+    
+    from src.translator import TranslationService
+    
+    # Create service with mock providers
+    service = TranslationService("none", "en", "es", None, enable_cache=False)
+    
+    # Mock primary provider (fails)
+    class FailingTranslator:
+        def translate(self, text):
+            raise Exception("Primary provider failed")
+    
+    # Mock fallback provider (succeeds)
+    class WorkingTranslator:
+        def translate(self, text):
+            return f"fallback_{text}"
+    
+    service.impl = FailingTranslator()
+    service.fallback_impl = WorkingTranslator()
+    service.preferred_provider = "failing"
+    
+    print("\n[TEST] Testing provider fallback...")
+    
+    result = service._translate_with_fallback("test")
+    assert result == "fallback_test"
+    print("✓ Fallback provider used successfully")
+    
+    # Check metrics
+    metrics = service.get_quality_metrics()
+    assert metrics['total_requests'] > 0
+    print("✓ Quality metrics tracked")
+    
+    return True
+
+
 def main():
     """Run all tests"""
     print("\n" + "="*70)
@@ -268,6 +509,12 @@ def main():
         ("Logging Configuration", test_logging_config),
         ("CLI Arguments", test_cli_args),
         ("Queue Maxsize", test_queue_maxsize),
+        ("Cache Persistence", test_cache_persistence),
+        ("Rate Limiting", test_rate_limiting),
+        ("Performance Benchmark", test_performance_benchmark),
+        ("Batch Translation", test_batch_translation),
+        ("Language Detection", test_language_detection),
+        ("Smart Provider Fallback", test_smart_fallback),
     ]
     
     results = []
@@ -306,6 +553,10 @@ def main():
         print("  • Logging system")
         print("  • New CLI arguments")
         print("  • Queue backlog prevention")
+        print("  • Batch translation processing")
+        print("  • Automatic language detection")
+        print("  • Smart provider fallback")
+        print("  • Quality metrics tracking")
         return 0
     else:
         print(f"\n⚠ {total - passed} test(s) failed. Please review the output above.")

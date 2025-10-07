@@ -3,3 +3,4 @@
 __pycache__/
 *.pyc
 
+translation_cache.json

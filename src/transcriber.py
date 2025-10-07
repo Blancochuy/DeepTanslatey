@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional, Callable
 from queue import Queue, Empty
 from dataclasses import dataclass
+import time
 
 from deepgram import DeepgramClient
 from deepgram.core.events import EventType
@@ -67,6 +68,9 @@ class DeepgramTranscriber:
         self.bytes_sent = 0
         self.last_transcript = ""
         self.last_translation = ""
+        self.start_time = time.time()
+        self.audio_read_times = []
+        self.translation_times = []
         
         # Async translation queue with max size to prevent backlog
         self.translation_queue = Queue(maxsize=100)
@@ -77,25 +81,73 @@ class DeepgramTranscriber:
         self.last_audio_time = 0
 
     def _translation_worker(self) -> None:
-        """Worker thread for async translations"""
-        while self.is_recording or not self.translation_queue.empty():
+        """Worker thread for async batch translations"""
+        batch_items = []
+        
+        while self.is_recording or not self.translation_queue.empty() or batch_items:
             try:
-                item = self.translation_queue.get(timeout=0.5)
-                transcript, timestamp, callback = item
+                # Collect items for batch processing
+                while len(batch_items) < 5 and not self.translation_queue.empty():
+                    try:
+                        item = self.translation_queue.get_nowait()
+                        batch_items.append(item)
+                    except Empty:
+                        break
                 
-                # Perform translation
-                translation = self.translator.translate(transcript)
-                self.last_translation = translation
-                
-                # Trigger callback if provided
-                if callback:
-                    callback(transcript, translation, timestamp)
-                
-                self.translation_queue.task_done()
-            except Empty:
-                continue
+                # Process batch if we have items
+                if batch_items:
+                    self._process_translation_batch(batch_items)
+                    # Mark all items as done
+                    for _ in batch_items:
+                        self.translation_queue.task_done()
+                    batch_items = []
+                else:
+                    # Wait for new items
+                    time.sleep(0.1)
+                    
             except Exception as e:
                 print(f"[error] Translation worker error: {e}")
+        
+        # Process any remaining items
+        if batch_items:
+            self._process_translation_batch(batch_items)
+            for _ in batch_items:
+                self.translation_queue.task_done()
+
+    def _process_translation_batch(self, batch_items: list) -> None:
+        """Process a batch of translation requests"""
+        if not batch_items:
+            return
+        
+        # Extract texts and metadata
+        texts = [item[0] for item in batch_items]
+        timestamps = [item[1] for item in batch_items]
+        callbacks = [item[2] for item in batch_items]
+        
+        # Perform batch translation
+        translate_start = time.time()
+        translations = self.translator.translate_batch(texts)
+        translate_time = time.time() - translate_start
+        
+        # Record timing (average per item)
+        avg_time = translate_time / len(translations)
+        for _ in range(len(translations)):
+            self.translation_times.append(avg_time)
+        if len(self.translation_times) > 50:
+            self.translation_times = self.translation_times[-50:]
+        
+        # Process results
+        for i, (text, translation, timestamp, callback) in enumerate(zip(texts, translations, timestamps, callbacks)):
+            self.last_translation = translation
+            
+            # Trigger callback if provided
+            if callback:
+                callback(text, translation, timestamp)
+            
+            # Mark queue item as done (for the first item, others weren't in queue)
+            if i == 0:
+                # Only the first item was actually from the queue
+                pass
     
     def _keepalive_worker(self, connection) -> None:
         """Send keepalive packets during silence to prevent connection timeout"""
@@ -187,7 +239,13 @@ class DeepgramTranscriber:
                 try:
                     while self.is_recording:
                         try:
+                            read_start = time.time()
                             data = audio_stream.read()
+                            read_time = time.time() - read_start
+                            self.audio_read_times.append(read_time)
+                            if len(self.audio_read_times) > 100:  # Keep last 100
+                                self.audio_read_times.pop(0)
+                            
                             if data:
                                 connection.send_media(data)
                                 self.bytes_sent += len(data)
@@ -223,11 +281,20 @@ class DeepgramTranscriber:
 
     def _print_summary(self) -> None:
         """Print session summary"""
+        total_time = time.time() - self.start_time
+        avg_audio_read = sum(self.audio_read_times) / len(self.audio_read_times) if self.audio_read_times else 0
+        avg_translation = sum(self.translation_times) / len(self.translation_times) if self.translation_times else 0
+        
         print("\n" + "=" * 70)
         print("SESSION SUMMARY")
         print("=" * 70)
         print(f"Transcriptions   : {self.transcription_count}")
         print(f"Data sent        : {self.bytes_sent:,} bytes ({self.bytes_sent/1024/1024:.2f} MB)")
+        print(f"Session time     : {total_time:.1f} seconds")
+        print(f"Avg audio read   : {avg_audio_read*1000:.1f} ms")
+        print(f"Avg translation  : {avg_translation*1000:.1f} ms")
+        if self.transcription_count > 0:
+            print(f"Transcripts/min  : {self.transcription_count / (total_time/60):.1f}")
         if self.last_transcript:
             print(f"Last transcript  : {self.last_transcript[:60]}...")
         if self.last_translation:
