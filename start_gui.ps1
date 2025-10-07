@@ -36,7 +36,7 @@ Write-Host "[INFO] Starting GUI..." -ForegroundColor Green
 Write-Host ""
 
 # Start the GUI
-python main_new.py --gui
+python main.py --gui
 
 Write-Host ""
 Write-Host "[INFO] GUI closed" -ForegroundColor Green

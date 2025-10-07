@@ -37,7 +37,7 @@ Write-Host "[INFO] Starting transcription..." -ForegroundColor Green
 Write-Host "       Press Ctrl+C to stop" -ForegroundColor Yellow
 Write-Host ""
 
-python main_new.py --device airpods --src en --tgt es --translator google
+python main.py --device airpods --src en --tgt es --translator google
 
 Write-Host ""
 Write-Host "[INFO] Transcription stopped" -ForegroundColor Green

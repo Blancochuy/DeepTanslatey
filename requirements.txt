@@ -7,5 +7,8 @@ python-dotenv>=1.0.1
 deep-translator>=1.11.4  # Google Translate (free, no API key needed)
 deepl>=1.16.1            # DeepL (requires API key, optional)
 
+# Additional dependencies used in code
+langdetect>=1.0.9
+
 # GUI dependencies (optional, for --gui mode)
 # tkinter is included with Python on Windows

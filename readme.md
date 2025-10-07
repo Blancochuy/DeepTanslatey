@@ -46,25 +46,25 @@ echo DEEPL_API_KEY=your_deepl_key >> .env
 
 #### GUI Mode (Recommended)
 ```powershell
-python main_new.py --gui
+python main.py --gui
 ```
 
 #### CLI Mode
 ```powershell
 # List available audio devices
-python main_new.py --list-devices
+python main.py --list-devices
 
 # Basic transcription (English to Spanish)
-python main_new.py --device airpods --src en --tgt es
+python main.py --device airpods --src en --tgt es
 
 # Using DeepL for translation
-python main_new.py --device discord --src en --tgt es --translator deepl
+python main.py --device discord --src en --tgt es --translator deepl
 
 # Test audio capture
-python main_new.py --test-capture airpods
+python main.py --test-capture airpods
 
 # Disable translation
-python main_new.py --device discord --src en --translator none
+python main.py --device discord --src en --translator none
 ```
 
 ## Project Structure
@@ -80,7 +80,7 @@ Translate/
 │   ├── cli.py             # Command-line interface
 │   └── gui.py             # Graphical user interface
 ├── main.py                # Original monolithic version
-├── main_new.py            # New modular entry point
+├── main.py                # New modular entry point
 ├── requirements.txt       # Python dependencies
 └── README.md             # This file
 ```
@@ -159,14 +159,14 @@ Common language codes:
 
 To migrate from `main.py` to the new modular version:
 
-1. The new entry point is `main_new.py`
+1. The new entry point is `main.py`
 2. All command-line options remain the same
 3. New `--gui` option for graphical interface
 4. Performance improvements are automatic (caching, async translation)
 
 Both versions can coexist. Test the new version:
 ```powershell
-python main_new.py --device airpods --src en --tgt es
+python main.py --device airpods --src en --tgt es
 ```
 
 ## Troubleshooting
