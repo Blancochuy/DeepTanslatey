@@ -1,19 +1,21 @@
-# 🎙️ Realtime Audio Transcription & Translation
+# Realtime Audio Transcription & Translation
+
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
 A fast, lightweight system for real-time audio transcription and translation using Deepgram AI and multiple translation providers.
 
-## ✨ Features
+## Features
 
-- **Real-time transcription** using Deepgram's state-of-the-art speech recognition
-- **Multi-provider translation**: Google Translate (free) or DeepL (premium)
-- **Translation caching** for faster repeated translations
-- **Asynchronous translation** for improved performance
-- **Windows WASAPI loopback** capture (capture system audio)
-- **CLI and GUI modes** - simple command-line or lightweight graphical interface
-- **Interim results** for low-latency feedback
-- **Multi-language support**
+- Real-time transcription using Deepgram's state-of-the-art speech recognition
+- Multi-provider translation: Google Translate (free) or DeepL (premium)
+- Translation caching for faster repeated translations
+- Asynchronous translation for improved performance
+- Windows WASAPI loopback capture (capture system audio)
+- CLI and GUI modes - simple command-line or lightweight graphical interface
+- Interim results for low-latency feedback
+- Multi-language support
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
@@ -65,7 +67,7 @@ python main_new.py --test-capture airpods
 python main_new.py --device discord --src en --translator none
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Translate/
@@ -83,7 +85,7 @@ Translate/
 └── README.md             # This file
 ```
 
-## ⚡ Performance Optimizations
+## Performance Optimizations
 
 The new version includes several optimizations:
 
@@ -101,20 +103,20 @@ The new version includes several optimizations:
    - Easier to maintain and extend
    - Better memory management
 
-## 🎨 GUI Features
+## GUI Features
 
 The lightweight GUI includes:
 
-- **Device selector** with auto-detection
-- **Language configuration** (source/target)
-- **Translation provider** selection
-- **Model selection** (nova-2, nova, base)
-- **Real-time transcript** display
-- **Real-time translation** display
-- **Session statistics**
-- **Start/Stop controls**
+- Device selector with auto-detection
+- Language configuration (source/target)
+- Translation provider selection
+- Model selection (nova-2, nova, base)
+- Real-time transcript display
+- Real-time translation display
+- Session statistics
+- Start/Stop controls
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 Create a `.env` file:
@@ -138,7 +140,7 @@ DEEPL_API_KEY=your_deepl_key  # Optional
 --gui               Launch GUI mode
 ```
 
-## 🌍 Supported Languages
+## Supported Languages
 
 Common language codes:
 - `en` - English
@@ -153,7 +155,7 @@ Common language codes:
 
 [See Deepgram docs](https://developers.deepgram.com/docs/languages-overview) for full list.
 
-## 📊 Migration from Old Version
+## Migration from Old Version
 
 To migrate from `main.py` to the new modular version:
 
@@ -167,7 +169,7 @@ Both versions can coexist. Test the new version:
 python main_new.py --device airpods --src en --tgt es
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### No devices found
 - Ensure audio is playing (loopback devices only appear when active)
@@ -181,11 +183,11 @@ python main_new.py --device airpods --src en --tgt es
 - Ensure virtual environment is activated
 - Run `pip install -r requirements.txt`
 
-## 📝 License
+## License
 
 See LICENSE file for details.
 
-## 🙏 Credits
+## Credits
 
 - [Deepgram](https://deepgram.com/) - Speech recognition API
 - [pyaudiowpatch](https://github.com/s0d3s/PyAudioWPatch) - WASAPI loopback support
